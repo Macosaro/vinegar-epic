@@ -55,13 +55,16 @@ var (
 )
 
 // Merges the Global binary config with either of the app binary configs.
-func Merge(global Binary, subbinary Binary, metadata toml.MetaData, name string) Binary {
+func (b *Binary) Merge(global Binary, metadata toml.MetaData, name string) {
 	values := reflect.ValueOf(global)
+
+	if values.IsZero() {
+		return
+	}
+
 	types := values.Type()
 
-	var merged = subbinary
-
-	mergedv := reflect.ValueOf(&merged).Elem()
+	v := reflect.ValueOf(b).Elem()
 
 	for i := 0; i < values.NumField(); i++ {
 		field := types.Field(i)
@@ -70,11 +73,9 @@ func Merge(global Binary, subbinary Binary, metadata toml.MetaData, name string)
 		if metadata.IsDefined("global", tomlname) && !metadata.IsDefined(name, tomlname) {
 			// TODO: merge environment and fflags instead of replacing them
 
-			mergedv.Field(i).Set(values.Field(i))
+			v.Field(i).Set(values.Field(i))
 		}
 	}
-
-	return merged
 }
 
 // Load will load the named file to a Config; if it doesn't exist, it
@@ -86,7 +87,7 @@ func Merge(global Binary, subbinary Binary, metadata toml.MetaData, name string)
 // Load is required for any initialization for Config, as it calls routines
 // to setup certain variables and verifies the configuration.
 func Load(name string) (Config, error) {
-	var cfg = Default()
+	cfg := Default()
 
 	if _, err := os.Stat(name); errors.Is(err, os.ErrNotExist) {
 		return cfg, nil
@@ -98,8 +99,10 @@ func Load(name string) (Config, error) {
 		return cfg, err
 	}
 
-	cfg.Player = Merge(cfg.Global, cfg.Player, metadata, "player")
-	cfg.Studio = Merge(cfg.Global, cfg.Studio, metadata, "studio")
+	cfg.Player.Merge(cfg.Global, metadata, "player")
+	cfg.Studio.Merge(cfg.Global, metadata, "studio")
+
+	fmt.Printf("%+v\n", cfg)
 
 	return cfg, cfg.setup()
 }
